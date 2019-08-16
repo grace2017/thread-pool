@@ -1,10 +1,15 @@
 /**
- *      pthread_cond_wait会有很多线程在此阻塞，
- *
  *      1、等消费线程全部启动起来再启动生产线程
  *      2、消费线程启动后（启动好的、没启动好的），马上启动生产线程
  *
  *      3、先启动生产线程
+ *
+ *      用到的知识
+ *          多线程
+ *          线程互斥：mutex
+ *          线程同步：条件变量
+ *          线程与信号
+ *
  */
 
 #include <stdio.h>
@@ -12,24 +17,9 @@
 #include <unistd.h>
 
 #include "include/TaskPool.h"
+#include "include/ThreadPool.h"
 
-typedef struct
-{
-    PTask   pTask;
-    int     data_size;
-    int     data_max_size;
-
-    int     head;
-    int     tail;
-
-    pthread_cond_t  cond_is_full;
-    pthread_cond_t  cond_is_empty;
-
-    pthread_mutex_t mutex_lock;
-
-}Data, *PData;
-
-void data_insert2(PData pData, int start, int end)
+void data_insert2(PTaskPool pData, int start, int end)
 {
     for (int i = start; i < end; ++i) {
         pthread_mutex_lock(&(pData->mutex_lock));
@@ -56,7 +46,7 @@ void data_insert2(PData pData, int start, int end)
     }
 }
 
-void data_insert(PData pData, void* (*function)(void*), void* arg)
+void data_insert(PTaskPool pData, void* (*function)(void*), void* arg)
 {
     pthread_mutex_lock(&(pData->mutex_lock));
 
@@ -91,7 +81,7 @@ void* thread_test(void* arg)
 
 void* thread_produce1(void* arg)
 {
-    PData pData = (PData)arg;
+    PTaskPool pData = (PTaskPool)arg;
 
     data_insert2(pData, 11, 19);
 
@@ -100,7 +90,7 @@ void* thread_produce1(void* arg)
 
 void* thread_produce2(void* arg)
 {
-    PData pData = (PData)arg;
+    PTaskPool pData = (PTaskPool)arg;
 
     data_insert2(pData, 21, 29);
 
@@ -110,7 +100,7 @@ void* thread_produce2(void* arg)
 
 void* thread_produce3(void* arg)
 {
-    PData pData = (PData)arg;
+    PTaskPool pData = (PTaskPool)arg;
 
     data_insert2(pData, 31, 39);
 
@@ -119,7 +109,7 @@ void* thread_produce3(void* arg)
 
 void* thread_produce4(void* arg)
 {
-    PData pData = (PData)arg;
+    PTaskPool pData = (PTaskPool)arg;
 
     data_insert2(pData, 41, 49);
 
@@ -128,7 +118,7 @@ void* thread_produce4(void* arg)
 
 void* thread_consume(void* arg)
 {
-    PData pData = (PData)arg;
+    PTaskPool pData = (PTaskPool)arg;
     Task task;
 
     while (1) {
@@ -159,32 +149,16 @@ void* thread_consume(void* arg)
 
         // 执行(执行完线程就退出了，很奇怪)
         (*(task.function))(task.arg);
-
-        pthread_t tid;
-
-        pthread_attr_t thread_attr;
-
-        // 设置线程分离属性
-//        if (0 != pthread_attr_init(&thread_attr))
-//        {
-//            perror("pthread_attr_init() fail");
-//
-//            break;
-//        }
-//
-//        if (0 != pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED))
-//        {
-//            perror("pthread_attr_setdetachstate() fail");
-//
-//            break;
-//        }
-//
-//        pthread_create(&tid, &thread_attr, task.function, task.arg);
-//
-//        pthread_attr_destroy(&thread_attr);
     }
 
     return NULL;
+}
+
+void sig_alarm_handler(int signo)
+{
+    if (SIGALRM == signo) {
+        printf("倒计时信号\n");
+    }
 }
 
 int main(void)
@@ -193,32 +167,24 @@ int main(void)
     pthread_t tid1, tid2, tid3, tid4;
     pthread_t consume1, consume2, consume3, consume4;
 
-    Data data;
+    TaskPool data;
+    ThreadPool threadPool;
 
-    data.data_size = 0;
-    data.head = 0;
-    data.tail = 0;
-    data.data_max_size = 2;
-    data.pTask = calloc(sizeof(Task), data.data_max_size);
+    signal(SIGALRM, sig_alarm_handler);
 
-    if (0 != pthread_cond_init(&(data.cond_is_full), NULL)
-            || 0 != pthread_cond_init(&(data.cond_is_empty), NULL)
-            || 0 != pthread_mutex_init(&(data.mutex_lock), NULL)) {
-        perror("init mutex、cond fail");
+    alarm(2);
 
-        exit(-1);
-    }
+    sleep(15);
 
-//    ptp = taskpool_init(10);
+//    taskpool_init(&data, 2);
 
-//    taskpool_insert(ptp, thread_consume, (void*)11);
-//    taskpool_insert(ptp, thread_consume, (void*)22);
-//    taskpool_insert(ptp, thread_consume, (void*)33);
+//    threadpool_init(2, 10, &data);
 
+//    这样写无法运行，原因没想明白
+//    PTaskPool pTaskPool = taskpool_init(2);
 
-
-    pthread_create(&tid1, NULL, thread_consume, (void*)&data);
-    pthread_create(&tid2, NULL, thread_consume, (void*)&data);
+//    pthread_create(&tid1, NULL, thread_consume, (void*)&data);
+//    pthread_create(&tid2, NULL, thread_consume, (void*)&data);
 //    pthread_create(&tid3, NULL, thread_consume, (void*)&data);
 //    pthread_create(&tid4, NULL, thread_consume, (void*)&data);
 
@@ -228,23 +194,16 @@ int main(void)
 //    pthread_create(&consume4, NULL, thread_produce4, (void*)&data);
 
 
-    sleep(2);
-
-    for (int i = 0; i < 30; i++) {
-        data_insert(&data, thread_test, i + 1);
-    }
+//    sleep(2);
+//
+//    for (int i = 0; i < 10; i++) {
+//        data_insert(&data, thread_test, i + 1);
+//    }
 
 //    data_insert(&data, thread_test, 1);
 //    data_insert(&data, thread_test, 2);
 //    data_insert(&data, thread_test, 3);
 //    data_insert(&data, thread_test, 4);
-
-    sleep(5);
-
-    pthread_join(tid1, NULL);
-    pthread_join(tid2, NULL);
-//    pthread_join(tid3, NULL);
-//    pthread_join(tid4, NULL);
 
 //    for (int i = 0; i < 10; ++i) {
 //        taskpool_insert(ptp, thread_test, (void*)i);
@@ -254,12 +213,17 @@ int main(void)
 
     printf("end \n");
 
-//    getchar();
+//    pthread_join(tid1, NULL);
+//    pthread_join(tid2, NULL);
+//    pthread_join(tid3, NULL);
+//    pthread_join(tid4, NULL);
 
-    pthread_cond_destroy(&(data.cond_is_full));
-    pthread_cond_destroy(&(data.cond_is_empty));
+    // 回收线程池中执行完任务的子线程
+//    threadpool_join(&threadPool);
 
-    pthread_mutex_destroy(&(data.mutex_lock));
+//    taskpool_destroy(&data);
+
+//    threadpool_destroy(&threadPool);
 
 //    taskpool_destroy(ptp);
 

@@ -15,25 +15,23 @@ typedef struct
 
 typedef struct
 {
-    PCircleQueue    pcq;
+    PTask   pTask;              /* 模拟环形队列 */
+    int     data_size;          /* 当前任务数 */
+    int     data_max_size;      /* 最大任务数 */
 
-    pthread_cond_t  cond_is_empty;
-    pthread_mutex_t mutex_is_empty;
+    int     head;               /* 始终指向队列的第一个元素 */
+    int     tail;               /* 始终指向队列的最后一个元素 */
 
     pthread_cond_t  cond_is_full;
-    pthread_mutex_t mutex_is_full;
+    pthread_cond_t  cond_is_empty;
+
+    pthread_mutex_t mutex_lock;
+
 }TaskPool, *PTaskPool;
 
-PTaskPool taskpool_init(int pool_max_size);
-void taskpool_destroy(PTaskPool ptp);
+int taskpool_init(PTaskPool pTaskPool, int max_size);
 
-bool taskpoll_is_empty(PTaskPool ptp);
-bool taskpool_is_full(PTaskPool ptp);
-
-int taskpool_insert(PTaskPool ptp, void* (* function)(void *), void* arg);
-
-int taskpool_getone(PTaskPool ptp, ele** pval);
-
+void taskpool_destroy(PTaskPool pTaskPool);
 
 
 #endif //PTHREAD_POOL3_TASKPOOL_H
