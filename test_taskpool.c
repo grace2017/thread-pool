@@ -170,15 +170,15 @@ int main(void)
     TaskPool data;
     ThreadPool threadPool;
 
-    signal(SIGALRM, sig_alarm_handler);
+//    signal(SIGALRM, sig_alarm_handler);
 
-    alarm(2);
+//    alarm(2);
 
-    sleep(15);
+//    sleep(15);
 
-//    taskpool_init(&data, 2);
+    taskpool_init(&data, 2);
 
-//    threadpool_init(2, 10, &data);
+    threadpool_init(2, 10, &data);
 
 //    这样写无法运行，原因没想明白
 //    PTaskPool pTaskPool = taskpool_init(2);
@@ -194,11 +194,12 @@ int main(void)
 //    pthread_create(&consume4, NULL, thread_produce4, (void*)&data);
 
 
-//    sleep(2);
-//
-//    for (int i = 0; i < 10; i++) {
-//        data_insert(&data, thread_test, i + 1);
-//    }
+
+    for (int i = 0; i < 10; i++) {
+        data_insert(&data, thread_test, i + 1);
+    }
+
+    sleep(20);
 
 //    data_insert(&data, thread_test, 1);
 //    data_insert(&data, thread_test, 2);
@@ -221,11 +222,9 @@ int main(void)
     // 回收线程池中执行完任务的子线程
 //    threadpool_join(&threadPool);
 
-//    taskpool_destroy(&data);
+    taskpool_destroy(&data);
 
-//    threadpool_destroy(&threadPool);
-
-//    taskpool_destroy(ptp);
+    threadpool_destroy(&threadPool);
 
     return 0;
 }
